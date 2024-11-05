@@ -1,0 +1,20 @@
+{
+  "name": "qr-scanner",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "body-parser": "^1.20.3",
+    "express": "^4.21.1",
+    "html5-qrcode": "^2.3.8",
+    "node-routeros": "^1.6.8",
+    "php-express": "^0.0.3",
+    "routeros-client": "^1.1.1"
+  }
+}

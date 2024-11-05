@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Scanner with MikroTik Login</title>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: black;
+            color: white;
+            overflow: hidden;
+            flex-direction: column;
+        }
+        #qr-reader {
+            width: 300px;
+            margin-bottom: 20px;
+        }
+        #log {
+            width: 300px;
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #333;
+            color: #fff;
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 5px;
+        }
+        #log p {
+            margin: 0;
+        }
+        #flashlight-btn {
+            margin-top: 15px;
+            padding: 10px;
+            background: #555;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .modal {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.5);
+    color:#000;
+}
+.modal-content {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    max-width: 300px;
+    text-align: center;
+}
+.plan {
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    padding: 10px;
+    margin: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+.plan:hover {
+    background-color: #f0f0f0;
+}
+.selected {
+    background-color: #d0e7ff;
+    border-color: #007bff;
+}
+.action-btn {
+    margin-top: 15px;
+    padding: 8px 16px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-right: 10px;
+}
+.action-btn:hover {
+    background-color: #0056b3;
+}
+.close-btn {
+    margin-top: 15px;
+    padding: 8px 16px;
+    background-color: #f44336;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.close-btn:hover {
+    background-color: #e53935;
+}
+    </style>
+</head>
+<body>
+
+<div id="qr-reader"></div>
+<div id="log"></div>
+
+<div id="customPromptModal" class="modal">
+    <div class="modal-content">
+        <h2>Select  Plan</h2>
+        <div class="plan" data-value="3d">₱50 - Basic, 5 Mbps for 1 day</div>
+        <div class="plan" data-value="7d">₱250 - Standard, 10 Mbps for 7 days</div>
+        <div class="plan" data-value="15d">₱1000 - Premium, 20 Mbps for 30 days</div>
+        <div class="plan" data-value="30d">₱2000 - Unlimited, 50 Mbps for unlimited days</div>
+        <div>
+            <button class="action-btn" id="okBtn">OK</button>
+            <button class="close-btn" onclick="closeModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script src="node_modules/html5-qrcode/html5-qrcode.min.js"></script>
+<script>
+    const logDiv = document.getElementById("log");
+    let track = null;
+
+    function addLog(message) {
+        const logMessage = document.createElement("p");
+        logMessage.textContent = message;
+        logDiv.appendChild(logMessage);
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    
+   async function onScanSuccess(decodedText) {
+        addLog(`QR Code detected: ${decodedText}`);
+        alert("QR CODE DETECTED \n To initiate 1 qr at a time");        
+        const username = getParams("username", decodedText);
+        const password = getParams("password", decodedText);
+        let validity;
+        const plan = await customPrompt();
+           if (plan) {
+               validity = plan ;
+            } else {
+        return;
+    }
+
+        addLog(`Extracted Scan Data: Ticket Plan:${validity}`);
+        addLog("┏ ━  ━  ━ ─────────────────+");
+        addLog(`┃  Username:${username}`);
+        addLog(`┃  Password:${password}`);
+        addLog(`┃  Validity:${validity}`);
+        addLog("┗ ━  ━  ━ ─────────────────+");
+        addLog("Data");
+        if (username && password && validity) {
+            addLog(`Sending data: username=${username}, validity=${validity}`);
+            fetch('/update-validity', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, validity })
+            })
+            .then(response => response.json())
+            .then(data => 
+               addLog(`Server Response: ${data.message}`))
+             .catch(error => addLog(`Error: ${error.message}`));
+        } else {
+            addLog("Input canceled or missing values.");
+        }
+    }
+
+    function onScanFailure(error) {
+     
+    }
+
+    addLog("Initializing QR scanner...");
+
+    const html5QrcodeScanner = new Html5Qrcode("qr-reader");
+
+    html5QrcodeScanner.start(
+        { facingMode: "environment" }, 
+        { fps: 10, qrbox: 250 },
+        onScanSuccess,
+        onScanFailure
+    ).then(() => {
+        addLog("QR scanner is ready.");
+        addLog("Scan Ticket to to reload");
+        addLog("Idea of: Jeffrey Cuya Solis Coded By: ChatGPT");
+    }).catch(error => {
+        addLog(`Failed to start QR scanner: ${error}`);
+    });
+
+
+function getParams(param, url) {
+    try {
+        const parsedUrl = new URL(url);
+        return parsedUrl.searchParams.get(param);
+    } catch (error) {
+        console.error("Invalid URL:", error);
+        return null;
+    }
+}
+
+
+
+
+let selectedPlan = '';
+
+async function getPlan() {
+    const plan = await customPrompt();
+    if (plan) {
+        return plan;
+    } else {
+        alert("No plan selected.");
+    }
+}
+
+
+function customPrompt() {
+    return new Promise((resolve) => {
+        document.getElementById('customPromptModal').style.display = 'block';
+
+        const plans = document.querySelectorAll('.plan');
+        plans.forEach(plan => {
+            plan.onclick = function() {
+                plans.forEach(p => p.classList.remove('selected'));
+                selectedPlan = this.getAttribute('data-value');
+                this.classList.add('selected');
+            };
+        });
+
+        document.getElementById('okBtn').onclick = function() {
+            closeModal();
+            resolve(selectedPlan);
+        };
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('customPromptModal');
+            if (event.target === modal) {
+                closeModal();
+                resolve(null);
+            }
+        };
+    });
+}
+
+function closeModal() {
+    document.getElementById('customPromptModal').style.display = 'none';
+}
+</script>
+
+</body>
+</html>
