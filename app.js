@@ -155,19 +155,38 @@ sshmikrotik(escapeString(cmdaddtime))
 
 
 
-
 let timeoutId;
+let countdownInterval;
+let countdown = 20;
 
 const resetTimeout = () => {
     if (timeoutId) {
         clearTimeout(timeoutId);
     }
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+
+    countdown = 20;
+
+    countdownInterval = setInterval(() => {
+        console.log(`Countdown: ${countdown} seconds remaining`);
+        countdown--;
+
+        if (countdown < 0) {
+            clearInterval(countdownInterval);
+        }
+    }, 1000);
+
     timeoutId = setTimeout(() => {
-        console.log('No traffic detected for 3 seconds, exiting...');
+        console.log('No traffic detected for 20 seconds');
         server.close();
         process.exit(0);
     }, 20000);
 };
+
+resetTimeout();
+
 
 app.get('/qrcode', (req, res) => {
     resetTimeout();
@@ -186,3 +205,4 @@ const server = https.createServer(options, app).listen(port, () => {
     });
 });
 
+            
