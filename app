@@ -1,10 +1,10 @@
 const express = require('express');
 const https = require('https');
+const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
 const app = express();
 app.use(express.json());
-
 const port = 3000;
 
 const options = {
@@ -153,6 +153,55 @@ sshmikrotik(escapeString(cmdaddtime))
 
 });
 
-https.createServer(options, app).listen(port, () => {
-    console.log(`Server is running at https://localhost:${port}`);
+
+
+let timeoutId;
+let countdownInterval;
+let countdown;
+
+const resetTimeout = () => {
+    if (timeoutId) {
+        clearTimeout(timeoutId);
+    }
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+
+    countdown = 60;
+
+    countdownInterval = setInterval(() => {
+        countdown--;
+
+        if (countdown < 0) {
+            console.log('done');
+            console.log('No traffic detected');
+            server.close();
+            process.exit(0);
+        }
+    
+    }, 1000);
+};
+
+
+app.get('/quit', (req, res) => {
+      console.log('done');
+            console.log('user exit');
+            server.close();
+            process.exit(0);
 });
+app.get('/qrcode', (req, res) => {
+    resetTimeout();
+    res.sendFile(path.join(__dirname, 'public/index.html')); // I-load ang index.html
+});
+
+const server = https.createServer(options, app).listen(port, () => {
+    console.log(`Server is running at https://localhost:${port}`);
+
+    const command = `am start -a android.intent.action.VIEW -d "https://localhost:${port}/qrcode"`;
+    require('child_process').exec(command, (error) => {
+        if (error) {
+            console.error(`Error opening browser: ${error}`);
+        }
+    });
+});
+
