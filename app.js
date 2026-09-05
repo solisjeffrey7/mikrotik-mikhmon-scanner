@@ -12,20 +12,30 @@ const options = {
     cert: fs.readFileSync('./server.cert')
 };
 
-app.use(express.static('public'));
+
+app.use(express.static('public', {
+    etag: false,
+    lastModified: false,
+    maxAge: 0
+}));
 
 const sshmikrotik = (command) => {
     const user = 'solisjeffrey7';
     const password = 'XCUTERsj1997';
-    const fullCommand = `sshpass -p '${password}' ssh ${user}@10.0.0.1 "${command}"`;
+    const fullCommand = `sshpass -p '${password}' ssh ${user}@10.0.0.1 '${command}'`;
 
     return new Promise((resolve, reject) => {
         exec(fullCommand, (error, stdout, stderr) => {
-            if (stderr) {
-                return reject(new Error(`Command execution error: ${stderr}`));
-            }
-            return resolve(stdout.trim());
-        });
+    if (error) {
+        return reject(error);
+    }
+
+    if (stderr && stderr.trim()) {
+        console.warn(stderr); // Warning lang, huwag i-reject
+    }
+
+    resolve(stdout.trim());
+});
     });
 };
 
@@ -102,62 +112,77 @@ function addTimeToRemainingTime(remainingTime, timeToAdd) {
     return `${month}/${day}/${year} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
 }
 
-app.post('/update-validity', (req, res) => {
+
+
+
+app.post('/update-validity', async (req, res) => {
+
     const { username, password, validity } = req.body;
-    const commandToExecute = `:put [/ip hotspot user get [find name="${username}"] comment]`;
-    const updateexp = '/system script run script3';
-    console.log('Name: ' + username);
-    console.log('Pass: ' + password);
-    console.log('Valid: ' + validity);
+    const updateexp = "/system script run script3";
 
-    sshmikrotik(commandToExecute)
-        .then(result => {
-       console.log(result);
-            if (!result || result.includes("no such item")) {
-                const now = new Date();
-                const newu = addTime(now, validity).trim();
-                console.log(newu);
-                const cmd = `/ip hotspot user add name="${username}" password="${password}" comment="${newu}" profile="General"`;
-                console.log(cmd);
+    try {
 
-                sshmikrotik(escapeString(cmd))
-                    .then(addResult => {
-                        console.log(`User added successfully expired at: ${addResult}`);
-                        res.json({ message: `User added successfully : expired at : ${newu}`});
-                        sshmikrotik(escapeString(updateexp));            
-        })
-                    .catch(addErr => {
-                        console.error("Error adding user:", addErr.message);
-                        res.status(500).json({ error: "Failed to add user" });
-                    });
-            } else {
+        console.log("Name:", username);
+        console.log("Pass:", password);
+        console.log("Valid:", validity);
 
+        // Check kung merong user
+        const count = await sshmikrotik(
+            `:put [:len [/ip hotspot user find where name="${username}"]]`
+        );
 
-const addtime = addTime(result , validity);
-const cmdaddtime = `/ip hotspot user set [find name="${username}"] comment="${addtime}"`
-sshmikrotik(escapeString(cmdaddtime))
-  .then(result2 => {
-                       
- 
-     console.log("User already exists:", addtime);
-     res.json({ message: `User already exists new expiration date : ${addtime}`});
-     sshmikrotik(escapeString(updateexp));
- 
-                    });
-            }
-        })
-        .catch(err => {
-            console.error("Error retrieving user:", err.message);
-            res.status(500).json({ error: "Failed to retrieve user" });
+        // ---------- ADD NEW USER ----------
+        if (count.trim() === "0") {
+
+            const expire = addTime(new Date(), validity).trim();
+
+            await sshmikrotik(
+                `/ip hotspot user add name="${username}" password="${password}" comment="${expire}" profile="General"`
+            );
+
+            await sshmikrotik(updateexp);
+
+            return res.json({
+                message: `User added successfully : expired at : ${expire}`
+            });
+
+        }
+
+        // ---------- USER EXISTS ----------
+        const comment = await sshmikrotik(
+            `:put [/ip hotspot user get [find where name="${username}"] comment]`
+        );
+
+        console.log("Current Expiration:", comment);
+
+        const newExpire = addTime(comment.trim(), validity);
+
+        await sshmikrotik(
+            `/ip hotspot user set [find where name="${username}"] comment="${newExpire}"`
+        );
+
+        await sshmikrotik(updateexp);
+
+        return res.json({
+            message: `User already exists new expiration date : ${newExpire}`
         });
+
+    } catch (err) {
+
+        console.error(err);
+
+        return res.status(500).json({
+            error: err.message
+        });
+
+    }
 
 });
 
 
-
 let timeoutId;
 let countdownInterval;
-let countdown = 20;
+let countdown;
 
 const resetTimeout = () => {
     if (timeoutId) {
@@ -167,30 +192,30 @@ const resetTimeout = () => {
         clearInterval(countdownInterval);
     }
 
-    countdown = 20;
+    countdown = 60;
 
     countdownInterval = setInterval(() => {
-        console.log(`Countdown: ${countdown} seconds remaining`);
         countdown--;
 
         if (countdown < 0) {
-            clearInterval(countdownInterval);
+            console.log('done');
+            console.log('No traffic detected');
+            server.close();
+            process.exit(0);
         }
+    
     }, 1000);
-
-    timeoutId = setTimeout(() => {
-        console.log('No traffic detected for 20 seconds');
-        server.close();
-        process.exit(0);
-    }, 20000);
 };
 
-resetTimeout();
 
-
+app.get('/quit', (req, res) => {
+      console.log('done');
+            console.log('user exit');
+            server.close();
+            process.exit(0);
+});
 app.get('/qrcode', (req, res) => {
     resetTimeout();
-    console.log('RESET TO 20m WiLL auto exit if unuse for 20m');
     res.sendFile(path.join(__dirname, 'public/index.html')); // I-load ang index.html
 });
 
@@ -205,4 +230,3 @@ const server = https.createServer(options, app).listen(port, () => {
     });
 });
 
-            
