@@ -1,0 +1,974 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d12">
+  <title>MikroTik Voucher Manager</title>
+  <!-- Transaction isolation update: V2; passes QR jk_tx to server endpoints. -->
+
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0d12;
+      --panel: #141821;
+      --panel2: #1b202b;
+      --border: #2b3240;
+      --text: #f4f6fb;
+      --muted: #929bad;
+      --accent: #8b9cff;
+      --success: #55d6a0;
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      padding: 20px 16px calc(24px + env(safe-area-inset-bottom));
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    .app { width: 100%; max-width: 480px; margin: 0 auto; }
+
+    .header { margin: 10px 0 26px; }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+
+    .brand-icon {
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--panel);
+      font-size: 22px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 750;
+      letter-spacing: -.4px;
+    }
+
+    .subtitle { margin-top: 4px; color: var(--muted); font-size: 12px; }
+
+    .screen { display: none; animation: appear .18s ease-out; }
+    .screen.active { display: block; }
+
+    @keyframes appear {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .card {
+      padding: 20px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+
+    .screen-title {
+      margin: 0 0 7px;
+      font-size: 22px;
+      font-weight: 750;
+      letter-spacing: -.6px;
+    }
+
+    .description {
+      margin: 0 0 20px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    #reader {
+      overflow: hidden;
+      width: 100%;
+      min-height: 240px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #080a0e;
+    }
+
+    #reader video { border-radius: 12px; object-fit: cover; }
+    #reader img { max-width: 100%; }
+
+    #reader__dashboard_section_csr button,
+    #reader__dashboard_section_swaplink {
+      margin: 8px 4px;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--panel2);
+      color: var(--text);
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      min-height: 46px;
+      padding: 12px 15px;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #101322;
+      font-weight: 750;
+      font-size: 14px;
+    }
+
+    .button.primary { background: var(--accent); color: #101322; }
+
+    .button.secondary {
+      border-color: var(--border);
+      background: var(--panel2);
+      color: var(--text);
+    }
+
+    .button.success { background: var(--success); color: #082318; }
+
+    .section-label, .label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .voucher-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding: 13px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #0e1118;
+    }
+
+    .voucher-name {
+      overflow-wrap: anywhere;
+      font-size: 15px;
+      font-weight: 750;
+    }
+
+    .voucher-status {
+      flex-shrink: 0;
+      padding: 5px 8px;
+      border-radius: 7px;
+      background: #252b39;
+      color: var(--accent);
+      font-size: 10px;
+      font-weight: 750;
+    }
+
+    .plans {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .plan {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 5px;
+      min-height: 83px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--panel2);
+      color: var(--text);
+      text-align: left;
+    }
+
+    .plan.selected {
+      border-color: var(--accent);
+      background: #22283b;
+      box-shadow: inset 0 0 0 1px var(--accent);
+    }
+
+    .plan-name { font-size: 15px; font-weight: 800; }
+    .plan-desc { color: var(--muted); font-size: 11px; }
+    .plan.selected .plan-desc { color: #c1c9ff; }
+
+    .preview {
+      margin-bottom: 18px;
+      padding: 15px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: #0e1118;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 9px 0;
+      font-size: 12px;
+    }
+
+    .info-row span { color: var(--muted); }
+
+    .info-row strong {
+      max-width: 65%;
+      overflow-wrap: anywhere;
+      text-align: right;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .divider { height: 1px; margin: 9px 0 15px; background: var(--border); }
+
+    .notice {
+      display: none;
+      margin-bottom: 15px;
+      padding: 11px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .notice.show { display: block; }
+
+    .notice.error {
+      border-color: #60323b;
+      background: #28151a;
+      color: #ffb1b1;
+    }
+
+    .notice.info { background: #182033; color: #c2ccff; }
+
+    .notice.success-notice {
+      border-color: #285945;
+      background: #10261d;
+      color: #9af0c8;
+    }
+
+    .actions { display: grid; gap: 10px; margin-top: 14px; }
+
+    .success-heading { margin-bottom: 20px; text-align: center; }
+
+    .success-icon {
+      display: grid;
+      place-items: center;
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 14px;
+      border: 1px solid #285945;
+      border-radius: 50%;
+      background: #10261d;
+      color: var(--success);
+      font-size: 31px;
+    }
+
+    .success-heading h2 { margin: 0 0 7px; font-size: 23px; }
+    .success-heading p { margin: 0; color: var(--muted); font-size: 13px; }
+
+    .total {
+      margin: 8px 0 18px;
+      color: var(--success);
+      font-size: clamp(25px, 8vw, 36px);
+      font-weight: 850;
+      line-height: 1.15;
+      overflow-wrap: anywhere;
+      letter-spacing: -1px;
+    }
+
+    .expiration { margin-top: 7px; font-size: 15px; font-weight: 750; overflow-wrap: anywhere; }
+
+    .footer {
+      margin-top: 20px;
+      color: #626b7b;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-icon">⌁</div>
+        <div>
+          <h1>Voucher Manager</h1>
+          <div class="subtitle">MikroTik Hotspot Validity</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- SCREEN 1: QR SCANNER ONLY -->
+    <section id="scanScreen" class="screen active">
+      <div class="card">
+        <h2 class="screen-title">Scan voucher</h2>
+        <p class="description">
+          I-scan ang QR code ng hotspot voucher para magdagdag ng validity.
+        </p>
+        <div id="noticeScan" class="notice"></div>
+        <div id="reader"></div>
+      </div>
+    </section>
+
+    <!-- SCREEN 2: SELECT PLAN -->
+    <section id="planScreen" class="screen">
+      <div class="card">
+        <h2 class="screen-title">Select validity</h2>
+        <p class="description">Piliin ang plan na idaragdag sa voucher.</p>
+
+        <div class="section-label">Selected voucher</div>
+        <div class="voucher-box">
+          <div>
+            <div class="label">Username</div>
+            <div id="voucherUsername" class="voucher-name">—</div>
+          </div>
+          <div class="voucher-status">HOTSPOT</div>
+        </div>
+
+        <div class="section-label">Available plans</div>
+        <div id="plans" class="plans"></div>
+
+        <div class="preview">
+          <div class="label">Validity preview</div>
+          <div class="info-row"><span>Selected plan</span><strong id="previewPlan">—</strong></div>
+          <div class="info-row"><span>Current remaining</span><strong id="previewRemaining">—</strong></div>
+          <div class="info-row"><span>Validity to add</span><strong id="previewAdded">—</strong></div>
+          <div class="divider"></div>
+          <div class="info-row"><span>Total after update</span><strong id="previewTotal">—</strong></div>
+          <div class="info-row"><span>Estimated expiration</span><strong id="previewExpiry">—</strong></div>
+        </div>
+
+        <div id="noticePlan" class="notice"></div>
+
+        <div class="actions">
+          <button id="applyButton" class="button primary" type="button">Apply Validity</button>
+          <button id="backButton" class="button secondary" type="button">Back to Scanner</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 3: SUCCESS -->
+    <section id="successScreen" class="screen">
+      <div class="card">
+        <div class="success-heading">
+          <div class="success-icon">✓</div>
+          <h2>Validity Updated</h2>
+          <p>Matagumpay na na-update ang voucher.</p>
+        </div>
+
+        <div class="card" style="padding:14px;background:#0e1118;">
+          <div class="info-row"><span>Voucher</span><strong id="successUsername">—</strong></div>
+          <div class="info-row"><span>Added validity</span><strong id="successPlan">—</strong></div>
+          <div class="info-row"><span>Previous remaining</span><strong id="successPrevious">—</strong></div>
+          <div class="divider"></div>
+          <div class="label">Total validity after update</div>
+          <div id="successTotal" class="total">—</div>
+          <div class="label">New expiration</div>
+          <div id="successExpiry" class="expiration">—</div>
+        </div>
+
+        <div id="noticeSuccess" class="notice"></div>
+        <div class="actions">
+          <button id="scanAgainButton" class="button success" type="button">Scan Again</button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">MikroTik Hotspot · Voucher Validity Manager</footer>
+  </main>
+
+  <script src="/node_modules/html5-qrcode/html5-qrcode.min.js"></script>
+
+  <script>
+    /*
+     * ======================================================
+     * PLAN CONFIGURATION — EDIT PLANS HERE
+     * ======================================================
+     * id:      Plan ID na dapat tanggapin din ng server.js
+     * name:    Pangalan ng plan
+     * label:   Description
+     * seconds: Validity na idadagdag
+     */
+
+    const PLAN_CONFIG = [
+      { id: "1m",  name: "1 Minute", label: "TEST",       seconds: 60 },
+      { id: "1h",  name: "1 Hour",   label: "FREE",       seconds: 3600 },
+      { id: "3d",  name: "3 Days",   label: "Short term", seconds: 3 * 86400 },
+      { id: "7d",  name: "7 Days",   label: "Weekly",     seconds: 7 * 86400 },
+      { id: "15d", name: "15 Days",  label: "Half month", seconds: 15 * 86400 },
+      { id: "30d", name: "30 Days",  label: "Monthly",    seconds: 30 * 86400 }
+    ];
+
+    const PLAN_SECONDS = Object.fromEntries(
+      PLAN_CONFIG.map(plan => [plan.id, plan.seconds])
+    );
+
+    const PLAN_LABELS = Object.fromEntries(
+      PLAN_CONFIG.map(plan => [plan.id, plan.name])
+    );
+
+    const $ = id => document.getElementById(id);
+
+    const scanScreen = $("scanScreen");
+    const planScreen = $("planScreen");
+    const successScreen = $("successScreen");
+
+    let scanner = null;
+    let scannerRunning = false;
+    let busy = false;
+    let voucher = null;
+    let selectedPlan = null;
+    let previewData = null;
+
+    function showScreen(screen) {
+      [scanScreen, planScreen, successScreen].forEach(item => {
+        item.classList.toggle("active", item === screen);
+      });
+    }
+
+    function showNotice(id, message, type = "info") {
+      const element = $(id);
+      element.textContent = message;
+      element.className = "notice show " + type;
+    }
+
+    function clearNotice(id) {
+      $(id).textContent = "";
+      $(id).className = "notice";
+    }
+
+    function setBusy(buttonId, isBusy, text) {
+      const button = $(buttonId);
+
+      if (!button.dataset.originalText) {
+        button.dataset.originalText = button.textContent.trim();
+      }
+
+      button.disabled = isBusy;
+      button.innerHTML = isBusy
+        ? '<span class="spinner"></span> ' + text
+        : "";
+
+      if (!isBusy) {
+        button.textContent = button.dataset.originalText;
+      }
+    }
+
+    function renderPlans() {
+      const container = $("plans");
+      container.replaceChildren();
+
+      PLAN_CONFIG.forEach(plan => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "plan";
+        button.dataset.validity = plan.id;
+
+        const name = document.createElement("span");
+        name.className = "plan-name";
+        name.textContent = plan.name;
+
+        const description = document.createElement("span");
+        description.className = "plan-desc";
+        description.textContent = plan.label;
+
+        button.append(name, description);
+        button.addEventListener("click", () => choosePlan(plan.id));
+        container.appendChild(button);
+      });
+    }
+
+    renderPlans();
+
+    function formatDuration(value) {
+      let seconds = Math.max(0, Math.floor(Number(value) || 0));
+
+      const days = Math.floor(seconds / 86400);
+      seconds %= 86400;
+
+      const hours = Math.floor(seconds / 3600);
+      seconds %= 3600;
+
+      const minutes = Math.floor(seconds / 60);
+      seconds %= 60;
+
+      const parts = [];
+
+      if (days) parts.push(days + (days === 1 ? " day" : " days"));
+      if (hours) parts.push(hours + (hours === 1 ? " hour" : " hours"));
+      if (minutes) parts.push(minutes + (minutes === 1 ? " minute" : " minutes"));
+
+      if (seconds && days === 0) {
+        parts.push(seconds + (seconds === 1 ? " second" : " seconds"));
+      }
+
+      return parts.length ? parts.join(" ") : "Expired";
+    }
+
+    function parseDate(value) {
+      if (!value) return null;
+      if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+
+      const text = String(value).trim();
+
+      // RouterOS date format: Oct/15/2026 12:30:00
+      const match = text.match(
+        /^([A-Za-z]{3})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/
+      );
+
+      if (match) {
+        const months = [
+          "jan", "feb", "mar", "apr", "may", "jun",
+          "jul", "aug", "sep", "oct", "nov", "dec"
+        ];
+
+        const month = months.indexOf(match[1].toLowerCase());
+        if (month < 0) return null;
+
+        const date = new Date(
+          Number(match[3]), month, Number(match[2]),
+          Number(match[4]), Number(match[5]), Number(match[6])
+        );
+
+        return Number.isNaN(date.getTime()) ? null : date;
+      }
+
+      const date = new Date(text);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function formatDate(value) {
+      const date = parseDate(value);
+      if (!date) return value ? String(value) : "Not available";
+
+      return date.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    }
+
+    function getRemainingSeconds() {
+      return Math.max(0, Number(previewData?.remainingSeconds) || 0);
+    }
+
+    function updatePreviewDisplay() {
+      if (!selectedPlan) return;
+
+      const previous = getRemainingSeconds();
+      const added = PLAN_SECONDS[selectedPlan];
+
+      $("previewRemaining").textContent = formatDuration(previous);
+      $("previewAdded").textContent = formatDuration(added);
+      $("previewTotal").textContent = formatDuration(previous + added);
+
+      const expiry = parseDate(previewData?.newExpiration);
+
+      $("previewExpiry").textContent = expiry
+        ? formatDate(expiry)
+        : formatDate(new Date(Date.now() + (previous + added) * 1000));
+    }
+
+    function choosePlan(planId) {
+      if (!Object.prototype.hasOwnProperty.call(PLAN_SECONDS, planId)) return;
+
+      selectedPlan = planId;
+
+      document.querySelectorAll(".plan").forEach(button => {
+        button.classList.toggle("selected", button.dataset.validity === planId);
+      });
+
+      $("previewPlan").textContent = PLAN_LABELS[planId];
+      $("previewAdded").textContent = formatDuration(PLAN_SECONDS[planId]);
+
+      updatePreviewDisplay();
+      clearNotice("noticePlan");
+    }
+
+    async function postJSON(url, payload) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data.success === false || data.error) {
+        throw new Error(
+          data.error || data.message || ("Request failed: HTTP " + response.status)
+        );
+      }
+
+      return data;
+    }
+
+    function createTransactionId() {
+      if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        return window.crypto.randomUUID();
+      }
+      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === "x" ? r : (r & 3 | 8)).toString(16);
+      });
+    }
+
+    function parseVoucher(raw) {
+      const text = String(raw || "").trim();
+      if (!text) throw new Error("Walang laman ang QR code.");
+
+      // QR contains JSON.
+      try {
+        const json = JSON.parse(text);
+
+        if (json && typeof json === "object") {
+          const username = json.username || json.user || json.login || json.name;
+          const password = json.password || json.pass || json.pw || "";
+
+          if (username) {
+            return {
+              username: String(username).trim(),
+              password: String(password).trim(),
+              transactionId: String(json.transactionId || json.jk_tx || json.tx || createTransactionId()).trim()
+            };
+          }
+        }
+      } catch (_) {}
+
+      // QR contains a URL with username/password parameters.
+      try {
+        const url = new URL(text);
+        const username =
+          url.searchParams.get("username") ||
+          url.searchParams.get("user") ||
+          url.searchParams.get("login");
+
+        const password =
+          url.searchParams.get("password") ||
+          url.searchParams.get("pass") ||
+          "";
+
+        if (username) {
+          return {
+            username: username.trim(),
+            password: password.trim(),
+            transactionId: String(url.searchParams.get("jk_tx") || url.searchParams.get("transactionId") || createTransactionId()).trim()
+          };
+        }
+      } catch (_) {}
+
+      // QR contains username=... and password=... lines.
+      const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      const fields = {};
+
+      lines.forEach(line => {
+        const match = line.match(
+          /^(username|user|login|password|pass|jk_tx|transactionId|tx)\s*[:=]\s*(.*)$/i
+        );
+
+        if (match) fields[match[1].toLowerCase()] = match[2].trim();
+      });
+
+      const username = fields.username || fields.user || fields.login;
+      const password = fields.password || fields.pass || "";
+
+      if (username) return {
+        username,
+        password,
+        transactionId: String(fields.jk_tx || fields.transactionid || fields.tx || createTransactionId()).trim()
+      };
+
+      // QR contains username:password.
+      if (lines.length === 1 && text.includes(":")) {
+        const index = text.indexOf(":");
+        const userPart = text.slice(0, index).trim();
+        const passPart = text.slice(index + 1).trim();
+
+        if (userPart) return { username: userPart, password: passPart, transactionId: createTransactionId() };
+      }
+
+      // QR contains only the username.
+      if (lines.length === 1 && !/\s/.test(text)) {
+        return { username: text, password: "", transactionId: createTransactionId() };
+      }
+
+      throw new Error("Hindi makilala ang QR format. I-check ang voucher QR.");
+    }
+
+    async function stopScanner() {
+      if (scanner && scannerRunning) {
+        try {
+          await scanner.stop();
+        } catch (_) {}
+
+        scannerRunning = false;
+      }
+    }
+
+    async function startScanner() {
+      if (typeof Html5Qrcode === "undefined") {
+        showNotice(
+          "noticeScan",
+          "Hindi ma-load ang QR scanner library. I-check ang html5-qrcode installation.",
+          "error"
+        );
+        return;
+      }
+
+      if (!scanner) scanner = new Html5Qrcode("reader");
+
+      if (scannerRunning) return;
+
+      try {
+        const cameras = await Html5Qrcode.getCameras();
+        if (!cameras?.length) throw new Error("Walang available na camera.");
+
+        const camera =
+          cameras.find(item => /back|rear|environment/i.test(item.label)) ||
+          cameras[cameras.length - 1];
+
+        await scanner.start(
+          camera.id,
+          {
+            fps: 10,
+            qrbox: (width, height) => {
+              const size = Math.floor(Math.min(width, height) * 0.78);
+              return { width: size, height: size };
+            },
+            aspectRatio: 1
+          },
+          async decodedText => {
+            if (busy || !scanScreen.classList.contains("active")) return;
+
+            busy = true;
+
+            try {
+              const parsed = parseVoucher(decodedText);
+              await stopScanner();
+              await openVoucher(parsed);
+            } catch (error) {
+              showNotice("noticeScan", error.message, "error");
+
+              if (scanScreen.classList.contains("active")) {
+                await stopScanner();
+                setTimeout(() => {
+                  if (scanScreen.classList.contains("active")) startScanner();
+                }, 1000);
+              }
+            } finally {
+              busy = false;
+            }
+          },
+          () => {}
+        );
+
+        scannerRunning = true;
+        clearNotice("noticeScan");
+      } catch (error) {
+        showNotice(
+          "noticeScan",
+          "Hindi ma-access ang camera. Payagan ang camera permission at gumamit ng HTTPS.",
+          "error"
+        );
+      }
+    }
+
+    async function openVoucher(parsedVoucher) {
+      const username = String(parsedVoucher.username || "").trim();
+      if (!username) throw new Error("Walang voucher username sa QR.");
+
+      voucher = {
+        username,
+        password: String(parsedVoucher.password || ""),
+        // Reuse the unguessable ID embedded in account.html's QR so status
+        // updates are isolated to this exact voucher transaction.
+        transactionId: String(parsedVoucher.transactionId || createTransactionId()).trim()
+      };
+
+      selectedPlan = null;
+      previewData = null;
+
+      $("voucherUsername").textContent = voucher.username;
+      $("previewPlan").textContent = "—";
+      $("previewRemaining").textContent = "Loading...";
+      $("previewAdded").textContent = "—";
+      $("previewTotal").textContent = "—";
+      $("previewExpiry").textContent = "Loading...";
+
+      document.querySelectorAll(".plan").forEach(button => {
+        button.classList.remove("selected");
+      });
+
+      clearNotice("noticePlan");
+      showScreen(planScreen);
+
+      try {
+        previewData = await postJSON("/voucher-info", {
+          username: voucher.username,
+          password: voucher.password,
+          validity: PLAN_CONFIG[0].id,
+          transactionId: voucher.transactionId
+        });
+
+        $("previewRemaining").textContent = formatDuration(getRemainingSeconds());
+        choosePlan(PLAN_CONFIG[0].id);
+      } catch (error) {
+        showNotice(
+          "noticePlan",
+          "Hindi makuha ang voucher information: " + error.message,
+          "error"
+        );
+
+        $("previewRemaining").textContent = "Unavailable";
+        $("previewExpiry").textContent = "Unavailable";
+      }
+    }
+
+    async function applyValidity() {
+      if (!voucher || !selectedPlan || busy) return;
+
+      busy = true;
+      setBusy("applyButton", true, "Updating...");
+
+      try {
+        // Refresh the existing validity before applying the selected plan.
+        previewData = await postJSON("/voucher-info", {
+          username: voucher.username,
+          password: voucher.password,
+          validity: selectedPlan,
+          transactionId: voucher.transactionId
+        });
+
+        const previousSeconds = getRemainingSeconds();
+
+        const result = await postJSON("/update-validity", {
+          username: voucher.username,
+          password: voucher.password,
+          validity: selectedPlan,
+          transactionId: voucher.transactionId
+        });
+
+        $("successUsername").textContent = voucher.username;
+        $("successPlan").textContent =
+          PLAN_LABELS[selectedPlan] + " (+" +
+          formatDuration(PLAN_SECONDS[selectedPlan]) + ")";
+
+        $("successPrevious").textContent = formatDuration(previousSeconds);
+
+        const expiryText =
+          result.expiration ||
+          result.newExpiration ||
+          previewData?.newExpiration ||
+          null;
+
+        $("successExpiry").textContent = formatDate(expiryText);
+
+        const expiryDate = parseDate(expiryText);
+
+        if (expiryDate) {
+          const totalSeconds = Math.max(
+            0,
+            Math.floor((expiryDate.getTime() - Date.now()) / 1000)
+          );
+
+          $("successTotal").textContent = formatDuration(totalSeconds);
+        } else {
+          $("successTotal").textContent = formatDuration(
+            previousSeconds + PLAN_SECONDS[selectedPlan]
+          );
+        }
+
+        if (result.message) {
+          showNotice("noticeSuccess", result.message, "success-notice");
+        } else {
+          clearNotice("noticeSuccess");
+        }
+
+        showScreen(successScreen);
+      } catch (error) {
+        showNotice("noticePlan", "Hindi na-update ang validity: " + error.message, "error");
+      } finally {
+        busy = false;
+        setBusy("applyButton", false);
+      }
+    }
+
+    $("applyButton").addEventListener("click", applyValidity);
+
+    $("backButton").addEventListener("click", async () => {
+      if (busy) return;
+
+      showScreen(scanScreen);
+      clearNotice("noticeScan");
+      await startScanner();
+    });
+
+    $("scanAgainButton").addEventListener("click", async () => {
+      if (busy) return;
+
+      await stopScanner();
+
+      voucher = null;
+      selectedPlan = null;
+      previewData = null;
+
+      clearNotice("noticeScan");
+      clearNotice("noticePlan");
+      clearNotice("noticeSuccess");
+
+      showScreen(scanScreen);
+      await startScanner();
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        stopScanner();
+      } else if (scanScreen.classList.contains("active") && !scannerRunning) {
+        startScanner();
+      }
+    });
+
+    startScanner();
+  </script>
+</body>
+</html>
+
+

@@ -3,7 +3,7 @@ const express=require('express'),http=require('http'),https=require('https'),tls
 const {spawn}=require('child_process');
 const app=express();
 const PORT=Number(process.env.PORT||3000),HEALTH_PORT=Number(process.env.HEALTH_PORT||3001),MIKROTIK_HOST=process.env.MIKROTIK_HOST||'10.0.0.1',MIKROTIK_PORT=Number(process.env.MIKROTIK_PORT||8729),MIKROTIK_USER=process.env.MIKROTIK_USER,MIKROTIK_PASSWORD=process.env.MIKROTIK_PASSWORD;
-const TLS_REJECT_UNAUTHORIZED=process.env.MIKROTIK_TLS_REJECT_UNAUTHORIZED!=='false',API_TIMEOUT=15000,INACTIVITY_SECONDS=60;
+const TLS_REJECT_UNAUTHORIZED=process.env.MIKROTIK_TLS_REJECT_UNAUTHORIZED!=='false',API_TIMEOUT=15000,INACTIVITY_SECONDS=6000;
 if(!MIKROTIK_USER||!MIKROTIK_PASSWORD){console.error('Missing MIKROTIK_USER or MIKROTIK_PASSWORD environment variable.');process.exit(1);}
 if(!Number.isInteger(PORT)||PORT<1||PORT>65535||!Number.isInteger(HEALTH_PORT)||HEALTH_PORT<1||HEALTH_PORT>65535||HEALTH_PORT===PORT||!Number.isInteger(MIKROTIK_PORT)||MIKROTIK_PORT<1||MIKROTIK_PORT>65535){console.error('Invalid PORT, HEALTH_PORT, or MIKROTIK_PORT.');process.exit(1);}
 const KEY_FILE=process.env.HTTPS_KEY||(fs.existsSync(path.join(__dirname,'key.pem'))?path.join(__dirname,'key.pem'):path.join(__dirname,'server.key'));

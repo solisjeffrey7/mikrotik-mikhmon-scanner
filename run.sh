@@ -1,0 +1,4 @@
+export MIKROTIK_USER='admin'
+export MIKROTIK_PASSWORD='XCUTERsj1997'
+export MIKROTIK_TLS_REJECT_UNAUTHORIZED=false
+node server.js
